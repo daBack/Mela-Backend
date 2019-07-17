@@ -2,11 +2,10 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const morgan = require("morgan");
 const cors = require("cors");
-
 const app = express();
-
 const port = 1337;
-
+var http = require('http').Server(app);
+const io = require('socket.io')(http);
 
 // don't show the log when it is test
 if (process.env.NODE_ENV !== 'test') {
@@ -19,57 +18,47 @@ app.use(bodyParser.json()); // for parsing application/json
 app.use(bodyParser.urlencoded({ extended: true })); // for parsing application/x-www-form-urlencoded
 
 // This is middleware called for all routes.
-// Middleware takes three parameters.
 app.use((req, res, next) => {
     console.log(req.method);
     console.log(req.path);
     next();
 });
 
-const index = require('./routes/index');
-const hello = require("./routes/hello");
+/* 
+    IMPORTING ROUTES AND SOCKET FUNCTIONS
+*/
+const user = require("./routes/users");
+const product = require("./routes/product");
+const ioServer = require("./modules/websocket.js");
 
+/*
+    ROUTES
+*/
+// put och delete = 204
+app.use('/user', user);
+app.use('/product', product);
 
-app.use('/', index);
-app.use('/hello', hello);
-
-// // Add a route
-// app.get("/", (req, res) => {
-//       const data = {
-//         data: {
-//           msg: "Hello World"
-//         }
-//       }
-
-//       res.json(data);
-// });
-
-app.get("/buy/:productId", (req, res) => {
-  const data = {
-    data: {
-      msg: "You bought a " + req.params.productId
-    }
-  };
-
-  res.json(data);
-});
-
-app.post("/", (req, res) => {
-  res.status(201).json({
-    data: {
-      msg: "Post data"
-    }
+/*
+    WebSocket Connection
+*/
+io.on('connection', function(socket) {
+  console.log('Store connected');
+  socket.on('disconnect', function() {
+    console.log('Store disconnected');
   });
 });
 
-app.put("/", (req, res) => {
-  res.status(204).send();
-});
 
-app.delete("/", (req, res) => {
-  res.status(204).send();
-});
-
+setInterval( async function() {
+  let data = await ioServer.emitPrice()
+  await console.log("data");
+  await console.log(data);
+  
+  await io.emit('data', data)
+}, 10000);
+/*
+    ERROR HANDLING
+*/
 app.use((req, res, next) => {
   var err = new Error("Not Found");
   err.status = 404;
@@ -93,4 +82,5 @@ app.use((err, req, res, next) => {
 });
 
 // Start up server
-app.listen(port, () => console.log(`Mela API listening on port ${port}!`));
+// app.listen(port, () => console.log(`Mela API listening on port ${port}!`));
+http.listen(port, () => console.log(`Mela API listening on HTTP port ${port}! Swag..`));
